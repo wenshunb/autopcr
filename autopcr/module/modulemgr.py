@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from dataclasses_json import dataclass_json
-from typing import List, Dict
+from typing import Any, Dict, List
 from abc import abstractmethod, abstractproperty
 
 from ..model.error import *
@@ -166,4 +166,9 @@ class ModuleManager:
             if resp.result[module.key].status == eResultStatus.PANIC:
                 break
         return resp
+
+    async def handle_module_action(self, module_key: str, action: str, payload: dict) -> Dict[str, Any]:
+        module = self.modules_list.get_module_from_key(module_key)
+        await module._ensure_client(self.client)
+        return await module.handle_action(self.client, action, payload)
 

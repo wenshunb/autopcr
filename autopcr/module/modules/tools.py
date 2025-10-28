@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
 from ...util.ilp_solver import memory_use_average
 
@@ -390,6 +390,193 @@ class get_clan_support_unit(Module):
             unit_name = db.get_unit_name(unit_id)
             info = f'{unit_name}({owner_name}): {"满中满" if strongest else "非满警告！"}\n{unit_info}\n'
             self._log(info)
+
+class _ArenaRankingModule(Module):
+    LIMIT = 50
+    PAGE_SIZE = 20
+
+    def _config_key(self, suffix: str) -> str:
+        return f"{self.key}_{suffix}"
+
+    async def _collect_ranking(
+        self,
+        fetch_fn: Callable[[int, int], Awaitable[Any]],
+        count: int,
+        target_rank: Optional[int] = None,
+    ) -> List[Any]:
+        count = max(1, count)
+        page_size = min(self.PAGE_SIZE, count if target_rank is None else self.PAGE_SIZE)
+
+        if target_rank is not None:
+            if target_rank <= 0:
+                raise ValueError('排名必须大于0')
+            page = (target_rank - 1) // page_size + 1
+            resp = await fetch_fn(page_size, page)
+            page_list = getattr(resp, 'ranking', None) or []
+            ranking = [item for item in page_list if item.rank == target_rank]
+            if not ranking and page > 1:
+                prev_resp = await fetch_fn(page_size, page - 1)
+                prev_list = getattr(prev_resp, 'ranking', None) or []
+                ranking = [item for item in prev_list if item.rank == target_rank]
+            return ranking
+
+        ranking: List[Any] = []
+        page = 1
+        while len(ranking) < count:
+            resp = await fetch_fn(page_size, page)
+            page_list = getattr(resp, 'ranking', None) or []
+            if not page_list:
+                break
+            ranking.extend(page_list)
+            if len(page_list) < page_size:
+                break
+            page += 1
+
+        return ranking[:count]
+
+    async def _fetch_name(self, client: pcrclient, viewer_id: int) -> str:
+        try:
+            profile = await client.get_profile(viewer_id)
+        except Exception as e:
+            self._log(f'获取玩家{viewer_id}昵称失败: {e}')
+            return ''
+
+        if profile and profile.user_info and profile.user_info.user_name:
+            return profile.user_info.user_name
+        return ''
+
+    def _make_action_cell(self, module_key: str, rank: int, viewer_id: int, name: str, enable_action: bool) -> Any:
+        if not enable_action:
+            return name
+        cell = {
+            'value': name,
+            'actions': [
+                {
+                    'label': '获取',
+                    'type': 'module_action',
+                    'module': module_key,
+                    'action': 'fetch_name',
+                    'payload': {
+                        'rank': rank,
+                        'viewer_id': viewer_id,
+                    },
+                }
+            ],
+        }
+        return cell
+
+    async def _render_table(
+        self,
+        client: pcrclient,
+        ranking: List[Any],
+        label: str,
+        fetch_names: bool,
+    ):
+        if not ranking:
+            raise SkipError(f'未获取到{label}')
+
+        self.table.header = []
+        self.table.data = []
+        self._table_header(['排名', '昵称', 'ID'])
+
+        name_cache: Dict[int, str] = {}
+        failed_ids: List[int] = []
+
+        for opponent in ranking:
+            viewer_id = int(opponent.viewer_id)
+            name = getattr(opponent, 'user_name', None) or ''
+
+            if fetch_names and not name:
+                if viewer_id in name_cache:
+                    name = name_cache[viewer_id]
+                else:
+                    name = await self._fetch_name(client, viewer_id)
+                    name_cache[viewer_id] = name
+
+            if fetch_names and not name:
+                failed_ids.append(viewer_id)
+
+            cell = self._make_action_cell(self.key, int(opponent.rank), viewer_id, name, not fetch_names and not name)
+
+            self._table({
+                '排名': opponent.rank,
+                '昵称': cell,
+                'ID': viewer_id,
+            })
+
+        self._log(f'共获取到{len(ranking)}条{label}')
+        if not fetch_names:
+            self._log('未开启昵称自动获取，可使用每行的获取按钮按需查询')
+
+        if failed_ids:
+            unique_failed = list(dict.fromkeys(failed_ids))
+            display = ', '.join(map(str, unique_failed[:5]))
+            suffix = '' if len(unique_failed) <= 5 else '...'
+            self._log(f'未能获取昵称的玩家ID: {display}{suffix}')
+
+    async def handle_action(self, client: pcrclient, action: str, payload: Dict[str, Any]):
+        if action != 'fetch_name':
+            return await super().handle_action(client, action, payload)
+
+        viewer_id = int(payload.get('viewer_id', 0))
+        if not viewer_id:
+            raise ValueError('缺少viewer_id')
+
+        name = await self._fetch_name(client, viewer_id)
+        return {
+            'viewer_id': viewer_id,
+            'user_name': name,
+            'rank': payload.get('rank'),
+            'module': self.key,
+        }
+
+
+@description('查询竞技场前50名的昵称与ID')
+@name('查竞技场前50')
+@default(True)
+@singlechoice('arena_rank_top_mode', '查询范围', '前X名', ['前X名', '第X名'])
+@inttype('arena_rank_top_limit', '前X名', 50, [i for i in range(1, 51)])
+@inttype('arena_rank_top_rank', '第X名', 1, [i for i in range(1, 2001)])
+@booltype('arena_rank_top_fetch_name', '立即获取昵称', False)
+class arena_rank_top(_ArenaRankingModule):
+    async def do_task(self, client: pcrclient):
+        mode = self.get_config('arena_rank_top_mode')
+        fetch_names = self.get_config('arena_rank_top_fetch_name')
+
+        if mode == '前X名':
+            limit = self.get_config('arena_rank_top_limit')
+            ranking = await self._collect_ranking(client.arena_rank, limit)
+            label = f'竞技场前{min(limit, len(ranking))}名排行数据'
+        else:
+            target_rank = self.get_config('arena_rank_top_rank')
+            ranking = await self._collect_ranking(client.arena_rank, target_rank, target_rank)
+            label = f'竞技场第{target_rank}名排行数据'
+
+        await self._render_table(client, ranking, label, fetch_names)
+
+
+@description('查询公主竞技场前50名的昵称与ID')
+@name('查公主竞技场前50')
+@default(True)
+@singlechoice('grand_arena_rank_top_mode', '查询范围', '前X名', ['前X名', '第X名'])
+@inttype('grand_arena_rank_top_limit', '前X名', 50, [i for i in range(1, 51)])
+@inttype('grand_arena_rank_top_rank', '第X名', 1, [i for i in range(1, 2001)])
+@booltype('grand_arena_rank_top_fetch_name', '立即获取昵称', False)
+class grand_arena_rank_top(_ArenaRankingModule):
+    async def do_task(self, client: pcrclient):
+        mode = self.get_config('grand_arena_rank_top_mode')
+        fetch_names = self.get_config('grand_arena_rank_top_fetch_name')
+
+        if mode == '前X名':
+            limit = self.get_config('grand_arena_rank_top_limit')
+            ranking = await self._collect_ranking(client.grand_arena_rank, limit)
+            label = f'公主竞技场前{min(limit, len(ranking))}名排行数据'
+        else:
+            target_rank = self.get_config('grand_arena_rank_top_rank')
+            ranking = await self._collect_ranking(client.grand_arena_rank, target_rank, target_rank)
+            label = f'公主竞技场第{target_rank}名排行数据'
+
+        await self._render_table(client, ranking, label, fetch_names)
 
 @description('获得可导入到兰德索尔图书馆的账号数据')
 @name('兰德索尔图书馆导入数据')

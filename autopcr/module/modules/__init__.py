@@ -215,5 +215,7 @@ tool_modules = ModuleList(
         remove_cb_ex_equip,
         remove_cb_support,
         redeem_unit_swap,
+        arena_rank_top,
+        grand_arena_rank_top,
     ]
 )

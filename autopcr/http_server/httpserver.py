@@ -355,6 +355,21 @@ class HttpServer:
             resp = [r.response('/daily/api/account/{}' + f'/single_result/{order}/{r.key}') for r in resp]
             return resp, 200
 
+        @self.api.route('/account/<string:acc>/module_action', methods = ['POST'])
+        @HttpServer.login_required()
+        @HttpServer.wrapaccountmgr(readonly = False)
+        @HttpServer.wrapaccount()
+        async def module_action(mgr: Account):
+            data = await request.get_json()
+            module_key = data.get('module')
+            action = data.get('action')
+            payload = data.get('payload', {})
+            if not module_key or not action:
+                return "缺少参数", 400
+
+            result = await mgr.handle_module_action(module_key, action, payload)
+            return result, 200
+
         @self.api.route('/account/<string:acc>/single_result/<string:order>', methods = ['GET'])
         @HttpServer.login_required()
         @HttpServer.wrapaccountmgr(readonly = True)

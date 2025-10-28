@@ -4,7 +4,7 @@ from dataclasses_json import dataclass_json
 from ..core.pcrclient import eLoginStatus, pcrclient
 from ..model.error import *
 from ..model.enums import *
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 from ..constants import CACHE_DIR
 from .config import Config, _wrap_init
 from enum import Enum
@@ -197,12 +197,7 @@ class Module:
             self.log.clear()
             self.warn.clear()
 
-            if self.need_login:
-                if client.logged == eLoginStatus.NOT_LOGGED or not client.data.ready:
-                    await client.login()
-                elif client.logged == eLoginStatus.NEED_REFRESH:
-                    client.data.update_stamina_recover()
-                    await client.refresh()
+            await self._ensure_client(client)
 
             ok, msg = await self.do_check(client)
             if not ok:
@@ -234,6 +229,15 @@ class Module:
             result.table = self.table
 
         return result
+
+    async def _ensure_client(self, client: pcrclient):
+        if not self.need_login:
+            return
+        if client.logged == eLoginStatus.NOT_LOGGED or not client.data.ready:
+            await client.login()
+        elif client.logged == eLoginStatus.NEED_REFRESH:
+            client.data.update_stamina_recover()
+            await client.refresh()
 
     def cron_hook(self) -> int:
         return None
@@ -294,3 +298,6 @@ class Module:
 
     def _abort(self, msg: str = ""):
         raise AbortError(msg)
+
+    async def handle_action(self, client: pcrclient, action: str, payload: Dict[str, Any]):
+        raise ValueError(f"模块{self.key}不支持交互操作{action}")
