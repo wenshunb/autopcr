@@ -99,7 +99,7 @@ class assetmgr:
         UnityPy.config.FALLBACK_UNITY_VERSION = "2021.3.20f1"
         ab = UnityPy.load(await self.download('a/masterdata_master.unity3d'))
         asset = ab.objects[0].read()
-        return asset.script
+        return asset.m_Script.encode("utf-8", "surrogateescape")
 
 
 # should lock before use
