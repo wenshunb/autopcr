@@ -1,5 +1,7 @@
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Set
 
+import asyncio
+
 from ...util.ilp_solver import memory_use_average
 
 from ...model.common import ChangeRarityUnit, DeckListData, GachaPointInfo, GrandArenaHistoryDetailInfo, GrandArenaHistoryInfo, GrandArenaSearchOpponent, ProfileUserInfo, RankingSearchOpponent, RedeemUnitInfo, RedeemUnitSlotInfo, UnitData, UnitDataLight, VersusResult, VersusResultDetail
@@ -507,6 +509,7 @@ class _ArenaRankingModule(Module):
 
     async def _fetch_name(self, client: pcrclient, viewer_id: int) -> str:
         try:
+            await asyncio.sleep(random.uniform(0, 1))
             profile = await client.get_profile(viewer_id)
         except Exception as e:
             self._log(f'获取玩家{viewer_id}昵称失败: {e}')
@@ -548,7 +551,7 @@ class _ArenaRankingModule(Module):
 
         self.table.header = []
         self.table.data = []
-        self._table_header(['排名', '昵称', 'ID'])
+        self._table_header(['排名', '对战对手', 'ID'])
 
         name_cache: Dict[int, str] = {}
         failed_ids: List[int] = []
@@ -571,7 +574,7 @@ class _ArenaRankingModule(Module):
 
             self._table({
                 '排名': opponent.rank,
-                '昵称': cell,
+                '对战对手': cell,
                 'ID': viewer_id,
             })
 

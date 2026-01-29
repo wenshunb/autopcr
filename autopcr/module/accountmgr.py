@@ -250,6 +250,28 @@ class AccountBatch(Account):
             'area': super().generate_tab(clan = self._parent.secret.clan, batch = True)
         }
 
+    def _merge_arena_table(self, ret_list: List[ModuleResult], alias: List[str]):
+        if any(r.table.header for r in ret_list):
+            header = next(r.table.header for r in ret_list)
+            header = ["昵称", "状态"] + header
+            data = [
+                {**d, '昵称': name, '状态': f"#{x.status.value}"}
+                for name, x in zip(alias, ret_list)
+                if x.table
+                for d in x.table.data
+            ]
+        else:
+            header = ["昵称", "状态", "结果"]
+            data = [
+                {
+                 '昵称': name,
+                 '状态': f"#{x.status.value}",
+                 '结果': x.log
+                }
+                for name, x in zip(alias, ret_list)
+            ]
+        return header, data
+
     async def do_from_key(self, config: dict, key: str, isAdminCall: bool = False) -> List[ModuleResultInfo]:
         async def do_from_key_pre(alias: str):
             async with self._parent.load(alias) as acc:
@@ -270,7 +292,9 @@ class AccountBatch(Account):
             ret = copy(ret_list[0])
             ret.log = '\n'.join(f"==={name}===\n{x.log}" for name, x in zip(alias, ret_list) if x.log)
             ret.status = eResultStatus.ERROR if any(x.status == eResultStatus.ERROR for x in ret_list) else eResultStatus.WARNING if any(x.status == eResultStatus.WARNING for x in ret_list) else eResultStatus.SUCCESS
-            if any(r.table.header for r in ret_list):
+            if key in {"arena_rank_top", "grand_arena_rank_top"}:
+                ret.table.header, ret.table.data = self._merge_arena_table(ret_list, alias)
+            elif any(r.table.header for r in ret_list):
                 ret.table.header = next(r.table.header for r in ret_list)
                 ret.table.header = ["昵称", '状态'] + ret.table.header
                 ret.table.data = [
@@ -283,7 +307,7 @@ class AccountBatch(Account):
                 ret.table.header = ["昵称", "状态", "结果"]
                 ret.table.data = [
                     {
-                     '昵称': name, 
+                     '昵称': name,
                      '状态': f"#{x.status.value}",
                      '结果': x.log
                     }
