@@ -1,0 +1,22 @@
+services:
+  autopcr:
+    build: .
+    image: autopcr:local
+    ports:
+      - "${AUTOPCR_SERVER_PORT:-13200}:13200"
+    environment:
+      AUTOPCR_SERVER_PORT: "${AUTOPCR_SERVER_PORT:-13200}"
+      AUTOPCR_SERVER_DEBUG_LOG: "${AUTOPCR_SERVER_DEBUG_LOG:-false}"
+      AUTOPCR_SERVER_ALLOW_REGISTER: "${AUTOPCR_SERVER_ALLOW_REGISTER:-true}"
+      AUTOPCR_SERVER_SUPERUSER: "${AUTOPCR_SERVER_SUPERUSER:-}"
+    volumes:
+      - autopcr_cache:/app/cache
+      - autopcr_result:/app/result
+      - autopcr_log:/app/log
+      - autopcr_data:/app/data
+
+volumes:
+  autopcr_cache:
+  autopcr_result:
+  autopcr_log:
+  autopcr_data:
