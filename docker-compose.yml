@@ -13,10 +13,8 @@ services:
       - autopcr_cache:/app/cache
       - autopcr_result:/app/result
       - autopcr_log:/app/log
-      - autopcr_data:/app/data
 
 volumes:
   autopcr_cache:
   autopcr_result:
   autopcr_log:
-  autopcr_data:
