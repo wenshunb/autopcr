@@ -55,7 +55,6 @@ services:
     ports:
       - "18000:13200"
     volumes:
-      - ./data:/app/data
       - ./cache:/app/cache
       - ./result:/app/result
       - ./log:/app/log
@@ -64,7 +63,8 @@ services:
 说明：
 
 - `docker-compose.override.yml` 只影响本机，不会提交到仓库（已加入 `.gitignore`）
-- 上面的示例把容器内的 `/app/data` `/app/cache` `/app/result` `/app/log` 映射到当前目录，方便持久化与查看
+- 上面的示例把容器内的 `/app/cache` `/app/result` `/app/log` 映射到当前目录，方便持久化与查看
+- `/app/data` 是只读静态资源目录（如 `extraDrops.json` / 字体文件），不建议绑定空目录覆盖
 
 启动时无需额外指定：
 
@@ -100,6 +100,8 @@ A: 在 `.env` 中修改 `AUTOPCR_SERVER_PORT`，或在 `docker-compose.override.
 
 A: 不需要，建议保持本地化，避免冲突。
 
-**Q: 为什么要把 /app/data 也挂载？**
+**Q: 为什么不建议把 /app/data 也挂载？**
 
-A: 项目会把账号信息等持久化到 `/app/data`，不挂载会导致容器重建后丢失数据。
+A: `/app/data` 用于静态资源读取，不保存账号数据。账号/配置等持久化在 `/app/cache/http_server`。  
+如果把空目录绑定到 `/app/data`，会覆盖镜像内默认数据并导致启动失败。  
+只有当你明确要替换这些静态资源时才挂载，并且先把镜像内默认数据拷到宿主机目录。
