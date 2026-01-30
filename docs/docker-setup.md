@@ -39,6 +39,12 @@ AUTOPCR_SERVER_ALLOW_REGISTER=true
 docker compose up --build
 ```
 
+后台运行（detach 模式）：
+
+```bash
+docker compose up -d --build
+```
+
 默认会映射端口 `13200`，访问：
 
 ```
@@ -55,9 +61,9 @@ services:
     ports:
       - "18000:13200"
     volumes:
-      - /data/document/你的用户名/autopcr/cache:/app/cache
-      - /data/document/你的用户名/autopcr/result:/app/result
-      - /data/document/你的用户名/autopcr/log:/app/log
+      - /srv/autopcr/cache:/app/cache
+      - /srv/autopcr/result:/app/result
+      - /srv/autopcr/log:/app/log
 ```
 
 说明：
@@ -111,7 +117,7 @@ A: `/app/data` 用于静态资源读取，不保存账号数据。账号/配置�
 A: 在 `.env` 里设置：  
 
 ```
-AUTOPCR_DATA_ROOT=/data/document/你的用户名/autopcr
+AUTOPCR_DATA_ROOT=/srv/autopcr
 ```
 
 `docker-compose.yml` 会自动把 `${AUTOPCR_DATA_ROOT}/cache|result|log` 挂载到容器内对应目录。
