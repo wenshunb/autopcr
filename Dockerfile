@@ -57,8 +57,14 @@ COPY . .
 # 预下载或执行可能会生成大的临时文件的步骤
 RUN python3 _download_web.py || (echo "Failed to download web file" && exit 1)
 
+# Keep a pristine copy of data for seeding mounted volumes at runtime
+RUN cp -a /app/data /app/data.default
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 13200
 
 VOLUME ["/app/result", "/app/cache", "/app/log"]
 
-CMD ["python3", "_httpserver_test.py"]
+ENTRYPOINT ["/entrypoint.sh"]
