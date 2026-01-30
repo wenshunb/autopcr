@@ -10,11 +10,6 @@ services:
       AUTOPCR_SERVER_ALLOW_REGISTER: "${AUTOPCR_SERVER_ALLOW_REGISTER:-true}"
       AUTOPCR_SERVER_SUPERUSER: "${AUTOPCR_SERVER_SUPERUSER:-}"
     volumes:
-      - autopcr_cache:/app/cache
-      - autopcr_result:/app/result
-      - autopcr_log:/app/log
-
-volumes:
-  autopcr_cache:
-  autopcr_result:
-  autopcr_log:
+      - "${AUTOPCR_DATA_ROOT:-.}/cache:/app/cache"
+      - "${AUTOPCR_DATA_ROOT:-.}/result:/app/result"
+      - "${AUTOPCR_DATA_ROOT:-.}/log:/app/log"

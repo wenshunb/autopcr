@@ -47,7 +47,7 @@ http://localhost:13200
 
 ## 4. 使用 docker-compose.override.yml（本地定制）
 
-如果你想把数据目录绑定到宿主机、或修改端口等，请创建 `docker-compose.override.yml`：
+如果你想把数据目录绑定到宿主机、或修改端口等，请设置环境变量或创建 `docker-compose.override.yml`：
 
 ```yaml
 services:
@@ -55,15 +55,15 @@ services:
     ports:
       - "18000:13200"
     volumes:
-      - ./cache:/app/cache
-      - ./result:/app/result
-      - ./log:/app/log
+      - /data/document/你的用户名/autopcr/cache:/app/cache
+      - /data/document/你的用户名/autopcr/result:/app/result
+      - /data/document/你的用户名/autopcr/log:/app/log
 ```
 
 说明：
 
 - `docker-compose.override.yml` 只影响本机，不会提交到仓库（已加入 `.gitignore`）
-- 上面的示例把容器内的 `/app/cache` `/app/result` `/app/log` 映射到当前目录，方便持久化与查看
+- 上面的示例把容器内的 `/app/cache` `/app/result` `/app/log` 映射到宿主机目录，方便持久化与查看
 - `/app/data` 是只读静态资源目录（如 `extraDrops.json` / 字体文件），不建议绑定空目录覆盖
 
 启动时无需额外指定：
@@ -105,3 +105,13 @@ A: 不需要，建议保持本地化，避免冲突。
 A: `/app/data` 用于静态资源读取，不保存账号数据。账号/配置等持久化在 `/app/cache/http_server`。  
 如果把空目录绑定到 `/app/data`，会覆盖镜像内默认数据并导致启动失败。  
 只有当你明确要替换这些静态资源时才挂载，并且先把镜像内默认数据拷到宿主机目录。
+
+**Q: 如果不用 override，怎么绑定宿主机目录？**  
+
+A: 在 `.env` 里设置：  
+
+```
+AUTOPCR_DATA_ROOT=/data/document/你的用户名/autopcr
+```
+
+`docker-compose.yml` 会自动把 `${AUTOPCR_DATA_ROOT}/cache|result|log` 挂载到容器内对应目录。
