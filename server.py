@@ -67,11 +67,12 @@ sv_help = f"""
 - {prefix}查装备 [<rank>] [fav] 查询缺口装备，rank为数字，只查询>=rank的角色缺口装备，fav表示只查询favorite的角色
 - {prefix}查深域 查询深域通关情况
 - {prefix}查公会深域 查询公会深域通关情况
+- {prefix}黎明界开局 <美食殿堂|破晓之星|咲恋救济院|王宫骑士团|拉比林斯> 可以只打部分字
 - {prefix}刷图推荐 [<rank>] [fav] 查询缺口装备的刷图推荐，格式同上
 - {prefix}公会支援 查询公会支援角色配置
 - {prefix}卡池 查看当前卡池
 - {prefix}编队 1 1 春妈 蝶妈 狗妈 水妈 礼妈 便捷设置编队
-- {prefix}一键编队 1 1 队名1 星级角色1 星级角色2 ... 星级角色5 队名2 星级角色1 星级角色2 END 设置多队编队，队伍不足5人以END结尾
+- {prefix}一键编队 1 1 [拉满] 队名1 星级角色1 星级角色2 ... 星级角色5 队名2 星级角色1 星级角色2 设置多队编队，一行一个队伍
 - {prefix}半月刊 查看半月刊
 - {prefix}识图 [图片] 识别图片中的角色，返回一键编队文本
 - {prefix}免费十连 <卡池id> 卡池id来自【{prefix}卡池】
@@ -801,6 +802,10 @@ async def find_memory(botev: BotEvent):
 async def find_pure_memory(botev: BotEvent):
     return {}
 
+@register_tool("查sp碎片", "get_need_sp_memory")
+async def find_sp_memory(botev: BotEvent):
+    return {}
+
 @register_tool(f"来发十连", "gacha_start")
 @require_super_admin
 async def shilian(botev: BotEvent):
@@ -991,6 +996,24 @@ async def half_schedule(botev: BotEvent):
 # async def return_jewel(botev: BotEvent):
     # return {}
 
+@register_tool("黎明界开局", "labyrinth_start_reroll")
+async def labyrinth_start_reroll(botev: BotEvent):
+    guild_id = 0
+    msg = await botev.message()
+    try:
+        for guild in db.labyrinth_enter_guild.values():
+            if msg[0] in guild.guild_name.replace(r"\n", ""):
+                guild_id = guild.guild_id
+                del msg[0]
+                break
+    except:
+        pass
+    if guild_id == 0:
+        await botev.finish(f"未找到公会，请输入包含以下公会名字：" + "\n".join([guild.guild_name.replace(r"\n", "") for guild in db.labyrinth_enter_guild.values()]))
+    return {
+            "labyrinth_reroll_guild_id": guild_id,
+    }
+
 @register_tool("查深域", "find_talent_quest")
 async def find_talent_quest(botev: BotEvent):
     return {}
@@ -1050,6 +1073,7 @@ async def set_my_party_multi(botev: BotEvent):
     msg = await botev.message()
     party_start_num = 1
     tab_start_num = 1
+    is_to_max = False
     try:
         tab_start_num = int(msg[0])
         del msg[0]
@@ -1060,12 +1084,17 @@ async def set_my_party_multi(botev: BotEvent):
         del msg[0]
     except:
         pass
+    try:
+        is_to_max = is_args_exist(msg, '拉满')
+    except:
+        pass
 
     teams_text = recover_text_by_tokens(raw_msg, msg)
     config = {
         "tab_start_num2": tab_start_num,
         "party_start_num2": party_start_num,
         "set_my_party_text2": teams_text,
+        "set_my_party2_to_max": is_to_max,
     }
     del msg[:]
     return config

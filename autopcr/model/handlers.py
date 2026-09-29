@@ -533,6 +533,10 @@ class LoadIndexResponse(responses.LoadIndexResponse):
         mgr.campaign_list = self.campaign_list
         mgr.dispatch_units = self.dispatch_units
         mgr.princess_knight_info = self.princess_knight_info
+        mgr.unit_role_list = self.unit_role_list
+        if self.receive_labyrinth_passport_count:
+            num = mgr.get_inventory(db.labyrinth_ticket)
+            mgr.set_inventory(db.labyrinth_ticket, num + self.receive_labyrinth_passport_count)
 
 @handles
 class HomeIndexResponse(responses.HomeIndexResponse):
@@ -570,6 +574,18 @@ class HomeIndexResponse(responses.HomeIndexResponse):
             mgr.alces_receive_tutorial_item_flag = self.alces_receive_tutorial_item_flag
 
         mgr.ready = True
+
+
+@handles
+class LabyrinthSkipResponse(responses.LabyrinthSkipResponse):
+    async def update(self, mgr: datamgr, request: LabyrinthSkipRequest):
+        for reward_list in (
+            self.skip_reward_list,
+            self.treasure_box_reward_list,
+            self.item_list,
+        ):
+            for item in reward_list or []:
+                mgr.update_inventory(item)
 
 
 @handles
@@ -889,6 +905,18 @@ class SeasonPassMissionAcceptResponse(responses.SeasonPassMissionAcceptResponse)
         if self.exchange_rewards:
             for reward in self.exchange_rewards:
                 mgr.update_inventory(reward)
+
+@handles
+class SubStoryRagReadStoryResponse(responses.SubStoryRagReadStoryResponse):
+    async def update(self, mgr: datamgr, request):
+        if self.reward_info:
+            for reward in self.reward_info:
+                mgr.update_inventory(reward)
+        if self.special_reward_list:
+            for reward in self.special_reward_list:
+                mgr.update_inventory(reward)
+        if self.user_jewel:
+            mgr.jewel = self.user_jewel
 
 @handles
 class SubStoryAbdReadStoryResponse(responses.SubStoryAbdReadStoryResponse):
@@ -1530,7 +1558,7 @@ class AlcesReadStoryResponse(responses.AlcesReadStoryResponse):
         mgr.alces_appear_story_flag = 0
 
 @handles
-class AlcesExecResponse(responses.AlcesExecResponse):
+class AlcesExecSubStatusResponse(responses.AlcesExecSubStatusResponse):
     async def update(self, mgr: datamgr, request):
         if self.current_alces_point:
             mgr.update_inventory(self.current_alces_point)
@@ -1538,7 +1566,15 @@ class AlcesExecResponse(responses.AlcesExecResponse):
             mgr.gold = self.user_gold
 
 @handles
-class AlcesFixResultResponse(responses.AlcesFixResultResponse):
+class AlcesExecSubStatusAutoResponse(responses.AlcesExecSubStatusAutoResponse):
+    async def update(self, mgr: datamgr, request):
+        if self.after_alces_point:
+            mgr.update_inventory(self.after_alces_point)
+        if self.user_gold:
+            mgr.gold = self.user_gold
+
+@handles
+class AlcesFixSubStatusResultResponse(responses.AlcesFixSubStatusResultResponse):
     async def update(self, mgr: datamgr, request):
         mgr.ex_equips[self.fixed_alces_data.serial_id] = self.fixed_alces_data
 
@@ -1548,6 +1584,20 @@ class AlcesLockSlotResponse(responses.AlcesLockSlotResponse):
         if self.alces_data_list:
             for data in self.alces_data_list:
                 mgr.ex_equips[data.serial_id].sub_status = data.sub_status
+
+@handles
+class UnitRoleGachaIndexResponse(responses.UnitRoleGachaIndexResponse):
+    async def update(self, mgr: datamgr, request):
+        mgr.unit_role_gacha_exec_count = self.exec_count
+
+@handles
+class UnitRoleGachaExecResponse(responses.UnitRoleGachaExecResponse):
+    async def update(self, mgr: datamgr, request):
+        mgr.unit_role_gacha_exec_count = self.exec_count
+        if self.reward_info_list:
+            for item in self.reward_info_list:
+                mgr.update_inventory(item)
+
 
 # 菜 就别玩
 # def custom_dict(self, *args, **kwargs):

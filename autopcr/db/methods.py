@@ -1,5 +1,5 @@
-from typing import Iterator, Tuple, List
-from ..model.common import eInventoryType
+from typing import Iterator, Optional, Tuple, List
+from ..model.common import ExtraEquipSubStatus, eInventoryType
 from ..model.custom import ItemType, UnitAttribute
 from . import models
 
@@ -36,13 +36,23 @@ class UnitRarity(models.UnitRarity):
 
 @method
 class ExEquipmentDatum(models.ExEquipmentDatum):
-    def get_unit_attribute(self, level: int) -> UnitAttribute:
+    def get_unit_attribute(self, level: int, sub_status: Optional[List[ExtraEquipSubStatus]] = None) -> UnitAttribute:
         from .database import db
         min_val = UnitAttribute.load(self, pre='default_')
         max_val = UnitAttribute.load(self, pre='max_')
         max_rank = db.get_ex_equip_max_rank(self.ex_equipment_id)
         max_star = db.get_ex_equip_max_star(self.ex_equipment_id, max_rank)
-        return (min_val + (max_val - min_val) * (level / max_star)) if max_star > 0 else min_val
+        ret = (min_val + (max_val - min_val) * (level / max_star)) if max_star > 0 else min_val
+
+        if sub_status:
+            group = db.ex_equipment_sub_status_group[self.ex_equipment_id]
+            sub_status_data = db.ex_equipment_sub_status[group.group_id]
+            for status in sub_status:
+                value = sub_status_data[status.status].step_value(status.step)
+                a = UnitAttribute()
+                a.set_value(status.status, value)
+                ret += a
+        return ret
 
 @method
 class EquipmentDatum(models.EquipmentDatum):
@@ -246,3 +256,12 @@ class TprPanelDatum(models.TprPanelDatum):
 class ExEquipmentSubStatus(models.ExEquipmentSubStatus):
     def step_value(self, step: int) -> int:
         return getattr(self, f"value_{step}")
+
+@method
+class LabyrinthWaveGroupDatum(models.LabyrinthWaveGroupDatum):
+    def get_enemy_ids(self) -> Iterator[int]:
+        yield self.enemy_id_1
+        yield self.enemy_id_2
+        yield self.enemy_id_3
+        yield self.enemy_id_4
+        yield self.enemy_id_5

@@ -50,6 +50,41 @@ class pcrclient(apiclient):
         await self.session.clear_session()
         self.need_refresh = False
 
+    async def labyrinth_top(self):
+        if not self.data.is_quest_cleared(11065001):
+            raise SkipError("迷宫未解锁")
+        if 4013001 not in self.data.read_story_ids:
+            await self.read_story(4013001)
+        req = LabyrinthTopRequest()
+        return await self.request(req)
+
+    async def labyrinth_enter(self, guild_id: int, difficulty: int):
+        req = LabyrinthEnterRequest()
+        req.guild_id = guild_id
+        req.difficulty = difficulty
+        return await self.request(req)
+
+    async def labyrinth_retire(self, enter_id: int):
+        req = LabyrinthRetireRequest()
+        req.enter_id = enter_id
+        return await self.request(req)
+
+    async def labyrinth_skip(self, guild_id: int, skip_count: int):
+        req = LabyrinthSkipRequest()
+        req.skip_list = [LabyrinthSkipData(guild_id=guild_id, skip_count=skip_count)]
+        req.current_passport_num = self.data.get_inventory(db.labyrinth_ticket)
+        return await self.request(req)
+
+    async def unit_role_gacha_index(self):
+        req = UnitRoleGachaIndexRequest()
+        return await self.request(req)
+
+    async def unit_role_gacha_exec(self, gacha_times: int, current_cost_num: int):
+        req = UnitRoleGachaExecRequest()
+        req.gacha_times = gacha_times
+        req.current_cost_num = current_cost_num
+        return await self.request(req)
+
     async def clan_battle_top(self):
         if not self.data.clan:
             raise AbortError("未加入公会")
@@ -74,17 +109,30 @@ class pcrclient(apiclient):
         req.story_id = story_id
         return await self.request(req)
 
-    async def alces_exec(self, serial_id: int):
-        req = AlcesExecRequest()
+    async def alces_exec(self, serial_id: int, exec_type: int = 1):
+        req = AlcesExecSubStatusRequest()
         req.serial_id = serial_id
         req.current_alces_point = self.data.get_inventory((eInventoryType.Item, 26202))
         req.current_gold = self.data.get_mana()
+        req.exec_type = exec_type
+        return await self.request(req)
+
+    async def alces_exec_auto(self, serial_id: int, exec_count: int, target_status_list: List[int], target_step: int = 5):
+        req = AlcesExecSubStatusAutoRequest()
+        req.serial_id = serial_id
+        req.exec_count = exec_count
+        req.current_alces_point = self.data.get_inventory((eInventoryType.Item, 26202))
+        req.current_gold = self.data.get_mana()
+        req.target_sub_status = AlcesAutoTargetSubStatus(
+            status_list=target_status_list,
+            step=target_step,
+        )
         return await self.request(req)
 
     async def alces_lock_slot(self, serial_id: int, slot_number: int, is_lock: int):
         req = AlcesLockSlotRequest()
         req.lock_list = [
-            AlcesDataPost(
+            AlcesSubStatusResultPost(
                 serial_id=serial_id,
                 sub_status=[ExtraEquipSubStatusPost(
                     slot_number=slot_number,
@@ -95,12 +143,12 @@ class pcrclient(apiclient):
         return await self.request(req)
 
     async def alces_cancel_result(self, serial_id: int):
-        req = AlcesCancelResultRequest()
+        req = AlcesCancelSubStatusResultRequest()
         req.serial_id = serial_id
         return await self.request(req)
 
     async def alces_fix_result(self, serial_id: int):
-        req = AlcesFixResultRequest()
+        req = AlcesFixSubStatusResultRequest()
         req.serial_id = serial_id
         return await self.request(req)
 
@@ -697,13 +745,13 @@ class pcrclient(apiclient):
         else:
             return False
 
-    async def exec_gacha_aware(self, target_gacha: GachaParameter, gacha_times: int, draw_type: eGachaDrawType, current_cost_num: int, campaign_id: int, last_gacha_index_time: int, auto_select_pickup: bool = True, pickup_min_first: bool = False) -> GachaReward:
+    async def exec_gacha_aware(self, target_gacha: GachaParameter, gacha_times: int, draw_type: eGachaDrawType, current_cost_num: int, campaign_id: int, last_gacha_index_time: int, auto_select_pickup: bool = True, pickup_min_first: bool = False, ticket_item: ItemType = None) -> GachaReward:
 
         if draw_type == eGachaDrawType.Payment and current_cost_num < 150 * gacha_times:
             raise AbortError(f"宝石{current_cost_num}不足{150 * gacha_times}")
 
         if draw_type == eGachaDrawType.Ticket and current_cost_num < 1:
-            raise AbortError(f"单抽券{current_cost_num}不足")
+            raise AbortError(f"抽卡券{current_cost_num}不足")
 
         if draw_type == eGachaDrawType.Temp_Ticket_10 and current_cost_num < 1:
             raise AbortError(f"限定十连券{current_cost_num}不足")
@@ -744,7 +792,7 @@ class pcrclient(apiclient):
             if tot:
                 self.data.jewel.jewel -= tot
         elif draw_type == eGachaDrawType.Ticket:
-            self.data.set_inventory(db.gacha_single_ticket, current_cost_num - 1)
+            self.data.set_inventory(ticket_item or db.gacha_single_ticket, current_cost_num - 1)
         elif draw_type == eGachaDrawType.Temp_Ticket_10:
             ticket = next((eInventoryType.Item, temp_ticket) for temp_ticket in db.get_gacha_temp_ticket() if self.data.get_inventory((eInventoryType.Item, temp_ticket)))
             self.data.set_inventory(ticket, current_cost_num - 1)
@@ -819,6 +867,15 @@ class pcrclient(apiclient):
 
     async def abd_top(self):
         req = SubStoryAbdTopRequest()
+        return await self.request(req)
+
+    async def read_rag_story(self, sub_story_id: int):
+        req = SubStoryRagReadStoryRequest()
+        req.sub_story_id = sub_story_id
+        req.skip_info = StorySkipInfo(
+                skip_type = eStorySkipType.MENU_SKIP,
+                scroll_coordinate = ""
+        )
         return await self.request(req)
 
     async def read_abd_story(self, sub_story_id: int):
@@ -1868,12 +1925,6 @@ class pcrclient(apiclient):
     def is_stamina_get_not_run(self):
         return self._get_key('stamina_get_not_run', False)
 
-    def is_star_cup_sweep_not_run(self):
-        return self._get_key('star_cup_sweep_not_run', False)
-
-    def is_heart_sweep_not_run(self):
-        return self._get_key('heart_sweep_not_run', False)
-
     def is_cron_run(self):
         return self._get_key('cron_run', False)
 
@@ -1885,12 +1936,6 @@ class pcrclient(apiclient):
 
     def set_stamina_get_not_run(self):
         self._keys['stamina_get_not_run'] = True
-
-    def set_star_cup_sweep_not_run(self):
-        self._keys['star_cup_sweep_not_run'] = True
-
-    def set_heart_sweep_not_run(self):
-        self._keys['heart_sweep_not_run'] = True
 
     def set_cron_run(self):
         self._keys['cron_run'] = True
